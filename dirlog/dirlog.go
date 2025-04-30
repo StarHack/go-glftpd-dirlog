@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const RecordSize = 288
@@ -42,6 +44,16 @@ func (d *DirLog) SetPath(p string) error {
 	}
 	copy(d.Dirname[:], p)
 	return nil
+}
+
+func (d *DirLog) Info() string {
+	files := d.Files
+	size := formatSize(d.Bytes)
+	created := time.Unix(int64(d.Uptime), 0)
+	age := time.Since(created)
+	days := int(age.Hours()) / 24
+	hours := int(age.Hours()) % 24
+	return fmt.Sprintf("(%dF/%s/%dd %dh)", files, size, days, hours)
 }
 
 type DirLogs struct {
@@ -163,4 +175,22 @@ func (dl *DirLogs) DeleteByPath(p string) bool {
 		return dl.DeleteAt(idx)
 	}
 	return false
+}
+
+func formatSize(b uint64) string {
+	const (
+		KB = 1024
+		MB = KB * 1000 // to match glftpd implementation
+		GB = MB * 1000 // to match glftpd implementation
+	)
+	switch {
+	case b >= GB:
+		return fmt.Sprintf("%.1fG", float64(b)/float64(GB))
+	case b >= MB:
+		return fmt.Sprintf("%.1fM", float64(b)/float64(MB))
+	case b >= KB:
+		return fmt.Sprintf("%.1fK", float64(b)/float64(KB))
+	default:
+		return fmt.Sprintf("%dB", b)
+	}
 }
