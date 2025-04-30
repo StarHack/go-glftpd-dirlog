@@ -25,3 +25,54 @@ Usage of ./cmd:
   -remove-path string
     	comma-separated paths to remove (case-insensitive match)
 ```
+
+## Sample usage
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/StarHack/go-glftpd-dirlog/dirlog"
+)
+
+func main() {
+	file := "/glftpd/ftp-data/logs/dirlog"
+	dl, err := dirlog.LoadFile(file)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Println("No existing dirlog, creating new one.")
+			dl = dirlog.New()
+		} else {
+			log.Fatalf("failed to load dirlog: %v", err)
+		}
+	}
+
+	fmt.Println("Current entries:")
+	for i, rec := range dl.Entries {
+		fmt.Printf("  %3d: %s %s\n", i+1, rec.Path(), rec.Info())
+	}
+
+	query := "myalbum"
+	if idx, rec := dl.FindByPath(query); rec != nil {
+		fmt.Printf("\nFound match for %q at #%d: %s %s\n",
+			query, idx+1, rec.Path(), rec.Info())
+	} else {
+		fmt.Printf("\nNo match for %q\n", query)
+	}
+
+	newDir := "my-new-dir"
+	if err := dl.AddPath(newDir); err != nil {
+		log.Fatalf("AddPath failed: %v", err)
+	}
+	fmt.Printf("\nAdded/updated: %s\n", newDir)
+
+	if err := dl.SaveFile(file); err != nil {
+		log.Fatalf("SaveFile failed: %v", err)
+	}
+	fmt.Printf("Saved %d entries to %s\n", len(dl.Entries), file)
+}
+```
