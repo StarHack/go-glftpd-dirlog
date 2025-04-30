@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/StarHack/go-glftpd-dirlog/dirlog"
@@ -14,6 +15,7 @@ func main() {
 	list := flag.Bool("list", false, "list dirlog entries")
 	find := flag.String("find", "", "case-insensitive substring to find in paths")
 	add := flag.String("add", "", "comma-separated paths to add")
+	addAll := flag.String("add-all", "", "add all immediate subdirectories of this directory")
 	removeIndex := flag.String("remove-index", "", "comma-separated record numbers to remove (1-based)")
 	removePath := flag.String("remove-path", "", "comma-separated paths to remove (case-insensitive match)")
 	flag.Parse()
@@ -56,6 +58,27 @@ func main() {
 			}
 		}
 		fmt.Printf("added paths: %s\n", *add)
+		changed = true
+	}
+
+	if *addAll != "" && dl != nil {
+		entries, err := os.ReadDir(*addAll)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading directory %q: %v\n", *addAll, err)
+			os.Exit(1)
+		}
+		var added []string
+		for _, e := range entries {
+			if e.IsDir() {
+				sub := filepath.Join(*addAll, e.Name())
+				if err := dl.AddPath(sub); err != nil {
+					fmt.Fprintf(os.Stderr, "error adding path %q: %v\n", sub, err)
+					os.Exit(1)
+				}
+				added = append(added, sub)
+			}
+		}
+		fmt.Printf("added subdirs: %s\n", strings.Join(added, ","))
 		changed = true
 	}
 

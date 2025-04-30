@@ -9,9 +9,11 @@ A sample implementation is available in `cmd/` dir.
 ```
 go run github.com/StarHack/go-glftpd-dirlog/cmd@latest
 
-Usage of cmd:
+Usage of ./cmd:
   -add string
     	comma-separated paths to add
+  -add-all string
+    	add all immediate subdirectories of this directory
   -file string
     	path to dirlog file (default "/glftpd/ftp-data/logs/dirlog")
   -find string
