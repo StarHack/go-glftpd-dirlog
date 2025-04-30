@@ -1,11 +1,27 @@
 # go-glftpd-dirlog
 
-Library for reading and writing new format glFTPD `dirlog` files (288-byte records).
+Library for reading and writing new format glFTPD `dirlog` files (288-byte records). The dirlog is the on-disk, fixed-size binary log that tracks every directory-related event (new uploads, nukes, unnukes, deletions) so the system and site-stats scripts can keep tabs on what’s happening. This is meant for sysops of glFTPD installations allowing them to edit the respective dirlog file.
+
+## Features
 
 - Add new dirs to dirlog
 - Remove dirs from dirlog
 - Search dirlog
 - List entries in dirlog
+
+Each record contains:
+
+- **status**
+  - `0 = NEWDIR`
+  - `1 = NUKE`
+  - `2 = UNNUKE`
+  - `3 = DELETED`
+- **uptime** creation or nuke timestamp (seconds since epoch)
+- **uploader/group** the UID/GID of the user who created (or nuked) the directory
+- **files** number of files in the directory at the moment of the event
+- **bytes** total size of those files in bytes
+- **dirname** full path to the directory
+- **dummy/padding** reserved for compatibility
 
 ## Reference implementation
 
