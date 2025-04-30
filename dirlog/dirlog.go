@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -50,7 +49,7 @@ type DirLogs struct {
 }
 
 func LoadFile(path string) (*DirLogs, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +73,7 @@ func LoadFile(path string) (*DirLogs, error) {
 
 func (dl *DirLogs) SaveFile(path string) error {
 	dir := filepath.Dir(path)
-	tmp, err := ioutil.TempFile(dir, "dirlog.tmp")
+	tmp, err := os.CreateTemp(dir, "dirlog.tmp")
 	if err != nil {
 		return err
 	}
