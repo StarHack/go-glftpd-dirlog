@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -101,7 +100,6 @@ func (dl *DirLogs) Paths() []string {
 
 func (dl *DirLogs) FindByPath(query string) (int, *DirLog) {
 	terms := strings.Fields(strings.ToLower(query))
-	fmt.Println(terms)
 	for i := range dl.Entries {
 		pathLower := strings.ToLower(dl.Entries[i].Path())
 		matched := true
@@ -116,6 +114,27 @@ func (dl *DirLogs) FindByPath(query string) (int, *DirLog) {
 		}
 	}
 	return -1, nil
+}
+
+func (dl *DirLogs) FindAllByPath(query string) ([]int, []*DirLog) {
+	terms := strings.Fields(strings.ToLower(query))
+	var idxs []int
+	var logs []*DirLog
+	for i := range dl.Entries {
+		pathLower := strings.ToLower(dl.Entries[i].Path())
+		ok := true
+		for _, term := range terms {
+			if !strings.Contains(pathLower, term) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			idxs = append(idxs, i)
+			logs = append(logs, &dl.Entries[i])
+		}
+	}
+	return idxs, logs
 }
 
 func (dl *DirLogs) Add(entry DirLog) {
