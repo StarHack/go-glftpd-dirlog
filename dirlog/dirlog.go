@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -98,9 +99,19 @@ func (dl *DirLogs) Paths() []string {
 	return out
 }
 
-func (dl *DirLogs) FindByPath(p string) (int, *DirLog) {
+func (dl *DirLogs) FindByPath(query string) (int, *DirLog) {
+	terms := strings.Fields(strings.ToLower(query))
+	fmt.Println(terms)
 	for i := range dl.Entries {
-		if strings.EqualFold(dl.Entries[i].Path(), p) {
+		pathLower := strings.ToLower(dl.Entries[i].Path())
+		matched := true
+		for _, term := range terms {
+			if !strings.Contains(pathLower, term) {
+				matched = false
+				break
+			}
+		}
+		if matched {
 			return i, &dl.Entries[i]
 		}
 	}
