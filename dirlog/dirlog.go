@@ -2,45 +2,39 @@ package dirlog
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-const RecordSize = 288
+const (
+	RecordSize = 288
+	PathOffset = 24
+	PathMax    = 255
+)
 
 type DirLog struct {
-	Status   uint16
-	_pad0    [2]byte
-	Uptime   int32
-	Uploader uint16
-	Group    uint16
-	Files    uint16
-	_pad1    [2]byte
-	Bytes    uint64
-	Dirname  [255]byte
-	Dummy    [8]byte
+	Data [RecordSize]byte
 }
 
 func (d *DirLog) Path() string {
-	if i := bytes.IndexByte(d.Dirname[:], 0); i >= 0 {
-		return string(d.Dirname[:i])
+	buf := d.Data[PathOffset:]
+	if i := bytes.IndexByte(buf, 0); i >= 0 {
+		return string(buf[:i])
 	}
-	return string(d.Dirname[:])
+	return string(buf)
 }
 
 func (d *DirLog) SetPath(p string) error {
-	if len(p) >= len(d.Dirname) {
+	if len(p) >= PathMax {
 		return errors.New("path too long")
 	}
-	copy(d.Dirname[:], p)
-	for i := len(p); i < len(d.Dirname); i++ {
-		d.Dirname[i] = 0
+	for i := 0; i < PathMax; i++ {
+		d.Data[PathOffset+i] = 0
 	}
+	copy(d.Data[PathOffset:], p)
 	return nil
 }
 
@@ -49,19 +43,19 @@ type DirLogs struct {
 }
 
 func LoadFile(path string) (*DirLogs, error) {
-	data, err := ioutil.ReadFile(path)
+	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	if len(data)%RecordSize != 0 {
+	if len(b)%RecordSize != 0 {
 		return nil, errors.New("invalid file size")
 	}
-	buf := bytes.NewReader(data)
-	entries, err := readAll(buf)
-	if err != nil {
-		return nil, err
+	n := len(b) / RecordSize
+	dl := &DirLogs{Entries: make([]DirLog, n)}
+	for i := 0; i < n; i++ {
+		copy(dl.Entries[i].Data[:], b[i*RecordSize:(i+1)*RecordSize])
 	}
-	return &DirLogs{Entries: entries}, nil
+	return dl, nil
 }
 
 func (dl *DirLogs) SaveFile(path string) error {
@@ -70,9 +64,11 @@ func (dl *DirLogs) SaveFile(path string) error {
 	if err != nil {
 		return err
 	}
-	if err := writeAll(tmp, dl.Entries); err != nil {
-		tmp.Close()
-		return err
+	for _, e := range dl.Entries {
+		if _, err := tmp.Write(e.Data[:]); err != nil {
+			tmp.Close()
+			return err
+		}
 	}
 	name := tmp.Name()
 	if err := tmp.Close(); err != nil {
@@ -81,29 +77,12 @@ func (dl *DirLogs) SaveFile(path string) error {
 	return os.Rename(name, path)
 }
 
-func readAll(r io.Reader) ([]DirLog, error) {
-	var out []DirLog
-	for {
-		var rec DirLog
-		err := binary.Read(r, binary.LittleEndian, &rec)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, rec)
+func (dl *DirLogs) Paths() []string {
+	out := make([]string, len(dl.Entries))
+	for i, e := range dl.Entries {
+		out[i] = e.Path()
 	}
-	return out, nil
-}
-
-func writeAll(w io.Writer, logs []DirLog) error {
-	for _, rec := range logs {
-		if err := binary.Write(w, binary.LittleEndian, &rec); err != nil {
-			return err
-		}
-	}
-	return nil
+	return out
 }
 
 func (dl *DirLogs) FindByPath(p string) (int, *DirLog) {
@@ -120,35 +99,26 @@ func (dl *DirLogs) Add(entry DirLog) {
 }
 
 func (dl *DirLogs) AddPath(p string) error {
-	var rec DirLog
-	if err := rec.SetPath(p); err != nil {
+	var e DirLog
+	if err := e.SetPath(p); err != nil {
 		return err
 	}
-	dl.Entries = append(dl.Entries, rec)
+	dl.Entries = append(dl.Entries, e)
 	return nil
 }
 
+func (dl *DirLogs) DeleteAt(i int) bool {
+	if i < 0 || i >= len(dl.Entries) {
+		return false
+	}
+	dl.Entries = append(dl.Entries[:i], dl.Entries[i+1:]...)
+	return true
+}
+
 func (dl *DirLogs) DeleteByPath(p string) bool {
-	idx, _ := dl.FindByPath(p)
-	if idx < 0 {
-		return false
+	if idx, _ := dl.FindByPath(p); idx >= 0 {
+		dl.DeleteAt(idx)
+		return true
 	}
-	dl.Entries = append(dl.Entries[:idx], dl.Entries[idx+1:]...)
-	return true
-}
-
-func (dl *DirLogs) DeleteAt(index int) bool {
-	if index < 0 || index >= len(dl.Entries) {
-		return false
-	}
-	dl.Entries = append(dl.Entries[:index], dl.Entries[index+1:]...)
-	return true
-}
-
-func (dl *DirLogs) Paths() []string {
-	out := make([]string, len(dl.Entries))
-	for i, rec := range dl.Entries {
-		out[i] = rec.Path()
-	}
-	return out
+	return false
 }
