@@ -20,18 +20,17 @@ func main() {
 
 	dl, err := dirlog.LoadFile(*filePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error loading dirlog: %v\n", err)
-		os.Exit(1)
+		fmt.Printf("Failed to load %s\n", *filePath)
 	}
 
-	if *list {
+	if *list && dl != nil {
 		for i, rec := range dl.Entries {
 			fmt.Printf("%5d: %s %s\n", i+1, rec.Path(), rec.Info())
 		}
 		return
 	}
 
-	if *find != "" {
+	if *find != "" && dl != nil {
 		idxs, matches := dl.FindAllByPath(*find)
 		if len(idxs) == 0 {
 			fmt.Printf("no matches for %q\n", *find)
@@ -45,7 +44,7 @@ func main() {
 
 	changed := false
 
-	if *add != "" {
+	if *add != "" && dl != nil {
 		for _, p := range strings.Split(*add, ",") {
 			p = strings.TrimSpace(p)
 			if p == "" {
@@ -60,7 +59,7 @@ func main() {
 		changed = true
 	}
 
-	if *removeIndex != "" {
+	if *removeIndex != "" && dl != nil {
 		toRem := parseList(*removeIndex)
 		for idx := range toRem {
 			if !dl.DeleteAt(idx - 1) {
@@ -71,7 +70,7 @@ func main() {
 		changed = true
 	}
 
-	if *removePath != "" {
+	if *removePath != "" && dl != nil {
 		for _, p := range strings.Split(*removePath, ",") {
 			p = strings.TrimSpace(p)
 			if p == "" {
@@ -86,7 +85,7 @@ func main() {
 		changed = true
 	}
 
-	if changed {
+	if changed && dl != nil {
 		if err := dl.SaveFile(*filePath); err != nil {
 			fmt.Fprintf(os.Stderr, "error saving dirlog: %v\n", err)
 			os.Exit(1)
