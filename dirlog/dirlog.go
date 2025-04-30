@@ -56,6 +56,21 @@ func (d *DirLog) Info() string {
 	return fmt.Sprintf("(%dF/%s/%dd %dh)", files, size, days, hours)
 }
 
+func New() *DirLogs {
+	return &DirLogs{Entries: make([]DirLog, 0)}
+}
+
+func NewFile(path string) (*DirLogs, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, err
+	}
+	dl := New()
+	if err := dl.SaveFile(path); err != nil {
+		return nil, err
+	}
+	return dl, nil
+}
+
 type DirLogs struct {
 	Entries []DirLog
 }
