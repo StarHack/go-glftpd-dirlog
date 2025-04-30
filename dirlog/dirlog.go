@@ -154,11 +154,35 @@ func (dl *DirLogs) Add(entry DirLog) {
 }
 
 func (dl *DirLogs) AddPath(p string) error {
+	idx, _ := dl.FindByPath(p)
 	var rec DirLog
 	if err := rec.SetPath(p); err != nil {
 		return err
 	}
-	dl.Entries = append(dl.Entries, rec)
+	var count int
+	var total uint64
+	err := filepath.Walk(p, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			count++
+			total += uint64(info.Size())
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	rec.Files = uint16(count)
+	rec.Bytes = total
+	rec.Uptime = int32(time.Now().Unix())
+	rec.Status = 0 // NEWDIR
+	if idx >= 0 {
+		dl.Entries[idx] = rec
+	} else {
+		dl.Entries = append(dl.Entries, rec)
+	}
 	return nil
 }
 
