@@ -2,25 +2,32 @@ package dirlog
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-const (
-	RecordSize = 288
-	PathOffset = 24
-	PathMax    = 255
-)
+const RecordSize = 288
 
 type DirLog struct {
-	Data [RecordSize]byte
+	Status   uint16    //  0–1
+	Pad0     [2]byte   //  2–3
+	Uptime   int32     //  4–7
+	Uploader uint16    //  8–9
+	Group    uint16    // 10–11
+	Files    uint16    // 12–13
+	Pad1     [2]byte   // 14–15
+	Bytes    uint64    // 16–23
+	Dirname  [255]byte // 24–278
+	Dummy    [9]byte   // 279–287 (8 bytes used + 1 pad to align to 4)
 }
 
 func (d *DirLog) Path() string {
-	buf := d.Data[PathOffset:]
+	buf := d.Dirname[:]
 	if i := bytes.IndexByte(buf, 0); i >= 0 {
 		return string(buf[:i])
 	}
@@ -28,13 +35,13 @@ func (d *DirLog) Path() string {
 }
 
 func (d *DirLog) SetPath(p string) error {
-	if len(p) >= PathMax {
+	if len(p) >= len(d.Dirname) {
 		return errors.New("path too long")
 	}
-	for i := 0; i < PathMax; i++ {
-		d.Data[PathOffset+i] = 0
+	for i := range d.Dirname {
+		d.Dirname[i] = 0
 	}
-	copy(d.Data[PathOffset:], p)
+	copy(d.Dirname[:], p)
 	return nil
 }
 
@@ -43,19 +50,26 @@ type DirLogs struct {
 }
 
 func LoadFile(path string) (*DirLogs, error) {
-	b, err := ioutil.ReadFile(path)
+	data, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	if len(b)%RecordSize != 0 {
+	if len(data)%RecordSize != 0 {
 		return nil, errors.New("invalid file size")
 	}
-	n := len(b) / RecordSize
-	dl := &DirLogs{Entries: make([]DirLog, n)}
-	for i := 0; i < n; i++ {
-		copy(dl.Entries[i].Data[:], b[i*RecordSize:(i+1)*RecordSize])
+	buf := bytes.NewReader(data)
+	var entries []DirLog
+	for {
+		var rec DirLog
+		if err := binary.Read(buf, binary.LittleEndian, &rec); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+		entries = append(entries, rec)
 	}
-	return dl, nil
+	return &DirLogs{Entries: entries}, nil
 }
 
 func (dl *DirLogs) SaveFile(path string) error {
@@ -64,8 +78,8 @@ func (dl *DirLogs) SaveFile(path string) error {
 	if err != nil {
 		return err
 	}
-	for _, e := range dl.Entries {
-		if _, err := tmp.Write(e.Data[:]); err != nil {
+	for _, rec := range dl.Entries {
+		if err := binary.Write(tmp, binary.LittleEndian, &rec); err != nil {
 			tmp.Close()
 			return err
 		}
@@ -79,8 +93,8 @@ func (dl *DirLogs) SaveFile(path string) error {
 
 func (dl *DirLogs) Paths() []string {
 	out := make([]string, len(dl.Entries))
-	for i, e := range dl.Entries {
-		out[i] = e.Path()
+	for i, rec := range dl.Entries {
+		out[i] = rec.Path()
 	}
 	return out
 }
@@ -99,11 +113,11 @@ func (dl *DirLogs) Add(entry DirLog) {
 }
 
 func (dl *DirLogs) AddPath(p string) error {
-	var e DirLog
-	if err := e.SetPath(p); err != nil {
+	var rec DirLog
+	if err := rec.SetPath(p); err != nil {
 		return err
 	}
-	dl.Entries = append(dl.Entries, e)
+	dl.Entries = append(dl.Entries, rec)
 	return nil
 }
 
@@ -117,8 +131,7 @@ func (dl *DirLogs) DeleteAt(i int) bool {
 
 func (dl *DirLogs) DeleteByPath(p string) bool {
 	if idx, _ := dl.FindByPath(p); idx >= 0 {
-		dl.DeleteAt(idx)
-		return true
+		return dl.DeleteAt(idx)
 	}
 	return false
 }
