@@ -2,6 +2,11 @@
 
 Library for reading and writing new format glFTPD `dirlog` files (288-byte records).
 
+- Add new dirs to dirlog
+- Remove dirs from dirlog
+- Search dirlog
+- List entries in dirlog
+
 ## Reference implementation
 
 A sample implementation is available in `cmd/` dir.
